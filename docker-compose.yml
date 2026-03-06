@@ -1,0 +1,101 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# docker-compose.yml — K-RLM Architecture full-stack
+#
+# Services:
+#   ollama   — local LLM inference engine (CPU hoặc GPU)
+#   backend  — FastAPI service gọi Ollama
+#   frontend — Vite dev server (hot-reload)
+# ─────────────────────────────────────────────────────────────────────────────
+services:
+
+  # ── Ollama ──────────────────────────────────────────────────────────────────
+  ollama:
+    image: ollama/ollama:latest
+    container_name: krlm-ollama
+    restart: unless-stopped
+    ports:
+      - "11434:11434" # expose cho host (debug / curl trực tiếp)
+    volumes:
+      - ollama_data:/root/.ollama # persist downloaded model weights
+    # Bật block dưới nếu có GPU NVIDIA:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:11434/api/tags" ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20s
+
+  # ── Model puller (one-shot init container) ───────────────────────────────────
+  ollama-init:
+    image: curlimages/curl:latest
+    container_name: krlm-ollama-init
+    depends_on:
+      ollama:
+        condition: service_healthy
+    # Pull phi3:mini mặc định — nhẹ nhất, boot nhanh nhất
+    # Thêm model khác vào đây hoặc dùng POST /api/v1/models/pull sau
+    entrypoint: >
+      sh -c "
+        echo '>>> Pulling phi3:mini...' &&
+        curl -s -X POST http://ollama:11434/api/pull -d '{\"name\":\"phi3:mini\"}' |
+        grep -o '\"status\":\"[^\"]*\"' | tail -1 &&
+        echo '>>> Done.'
+      "
+    restart: "no"
+
+  # ── FastAPI backend ──────────────────────────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: runtime
+    container_name: krlm-backend
+    restart: unless-stopped
+    ports:
+      - "8000:8000"
+    environment:
+      OLLAMA_BASE_URL: "http://ollama:11434"
+      OLLAMA_TIMEOUT: "120"
+      DEFAULT_MODEL: "phi3:mini"
+    depends_on:
+      ollama:
+        condition: service_healthy
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/v1/health" ]
+      interval: 20s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    develop:
+      watch:
+        - action: sync
+          path: ./backend/app
+          target: /app/app
+
+  # ── Vite frontend (dev) ──────────────────────────────────────────────────────
+  frontend:
+    image: node:20-alpine
+    container_name: krlm-frontend
+    working_dir: /app
+    command: sh -c "npm install && npm run dev -- --host 0.0.0.0"
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules # anon volume → container node_modules không bị ghi đè
+    environment:
+      VITE_API_BASE_URL: "http://localhost:8000/api/v1"
+    depends_on:
+      - backend
+
+# ─── Named volumes ────────────────────────────────────────────────────────────
+volumes:
+  ollama_data:
+    driver: local
