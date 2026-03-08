@@ -8,6 +8,7 @@ import TopHeader from './components/layout/TopHeader';
 import PlaygroundView from './components/views/PlaygroundView';
 import GraphView from './components/views/GraphView';
 import EvalView from './components/views/EvalView';
+import ChatTestView from './components/views/ChatTestView';
 
 // ── Static data ────────────────────────────────────────────────────────────────
 import { MODELS, STRATEGIES, DATASETS } from './data/constants';
@@ -33,9 +34,10 @@ export default function App() {
   // ── View router ──────────────────────────────────────────────────────────────
   const renderView = () => {
     switch (activeTab) {
-      case 'playground': return <PlaygroundView selectedStrategy={selectedStrategy} />;
+      case 'playground': return <PlaygroundView selectedStrategy={selectedStrategy} selectedModel={selectedModel} />;
       case 'graph': return <GraphView />;
       case 'eval': return <EvalView />;
+      case 'chat-test': return <ChatTestView selectedModel={selectedModel} />;
       default: return null;
     }
   };

@@ -14,7 +14,8 @@ httpx          = "^0.27.0"         # async client để gọi Ollama REST
 pydantic       = "^2.7.0"
 pydantic-settings = "^2.3.0"
 python-dotenv  = "^1.0.1"
-tenacity       = "^8.3.0"          # retry logic cho Ollama gọi có thể chậm
+tenacity       = "^8.3.0"          # retry logic cho Ollama
+langsmith      = "^0.1.75"         # telemetry / tracing
 
 [tool.poetry.group.dev.dependencies]
 pytest         = "^8.2.0"

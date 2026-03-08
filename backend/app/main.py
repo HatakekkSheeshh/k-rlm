@@ -36,6 +36,14 @@ app.include_router(health.router,    prefix=settings.api_prefix)
 app.include_router(inference.router, prefix=settings.api_prefix)
 app.include_router(models.router,    prefix=settings.api_prefix)
 
+# ── Inline lightweight endpoint: template list ──────────────────────────────────
+from app.prompts import TEMPLATES
+
+@app.get(f"{settings.api_prefix}/templates", tags=["Inference"])
+def list_templates():
+    """Return available prompt templates (id + label) for the frontend."""
+    return [{"id": t["id"], "label": t["label"]} for t in TEMPLATES]
+
 
 # ── Lifecycle ─────────────────────────────────────────────────────────────────
 @app.on_event("shutdown")

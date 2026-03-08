@@ -1,0 +1,4 @@
+echo '>>> Pulling gemma:7b...' &&
+curl -s -X POST http://ollama:11434/api/pull -d '{\"name\":\"gemma:7b\"}' | grep -o '\"status\":\"[^\"]*\"' | tail -1 &&
+echo '>>> Pulling mistral:7b-instruct-v0.2-q4_0...' &&
+curl -s -X POST http://ollama:11434/api/pull -d '{\"name\":\"mistral:7b-instruct-v0.2-q4_0\"}' | grep -o '\"status\":\"[^\"]*\"' | tail -1 &&

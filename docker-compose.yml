@@ -17,16 +17,15 @@ services:
       - "11434:11434" # expose cho host (debug / curl trực tiếp)
     volumes:
       - ollama_data:/root/.ollama # persist downloaded model weights
-    # Bật block dưới nếu có GPU NVIDIA:
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all
-    #           capabilities: [gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [ gpu ]
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:11434/api/tags" ]
+      test: [ "CMD", "ollama", "list" ]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -39,14 +38,11 @@ services:
     depends_on:
       ollama:
         condition: service_healthy
-    # Pull phi3:mini mặc định — nhẹ nhất, boot nhanh nhất
-    # Thêm model khác vào đây hoặc dùng POST /api/v1/models/pull sau
     entrypoint: >
       sh -c "
         echo '>>> Pulling phi3:mini...' &&
-        curl -s -X POST http://ollama:11434/api/pull -d '{\"name\":\"phi3:mini\"}' |
-        grep -o '\"status\":\"[^\"]*\"' | tail -1 &&
-        echo '>>> Done.'
+        curl -s -X POST http://ollama:11434/api/pull -d '{\"name\":\"phi3:mini\"}' | grep -o '\"status\":\"[^\"]*\"' | tail -1 &&
+        echo '>>> All models pulled successfully.'
       "
     restart: "no"
 
@@ -64,11 +60,15 @@ services:
       OLLAMA_BASE_URL: "http://ollama:11434"
       OLLAMA_TIMEOUT: "120"
       DEFAULT_MODEL: "phi3:mini"
+    env_file:
+      - ./backend/.env
     depends_on:
       ollama:
         condition: service_healthy
+    volumes:
+      - ./backend/app:/app/app
     healthcheck:
-      test: [ "CMD", "curl", "-f", "http://localhost:8000/api/v1/health" ]
+      test: [ "CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')" ]
       interval: 20s
       timeout: 5s
       retries: 3

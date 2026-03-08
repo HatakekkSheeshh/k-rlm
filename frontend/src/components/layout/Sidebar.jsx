@@ -1,7 +1,7 @@
 import React from 'react';
 import { Brain } from 'lucide-react';
 import { Cpu, GitPullRequest, Database } from 'lucide-react';
-import { Beaker, Network, Activity } from 'lucide-react';
+import { Beaker, Network, Activity, MessageSquare } from 'lucide-react';
 import SelectField from '../ui/SelectField';
 
 // ─── Navigation item config ───────────────────────────────────────────────────
@@ -24,6 +24,13 @@ const NAV_ITEMS = [
         Icon: Activity,
         activeClass: 'bg-emerald-600/10 text-emerald-400',
     },
+    // [TODO] Temp for SLM testing
+    {
+        id: 'chat-test',
+        label: 'Chat Test (Debug)',
+        Icon: MessageSquare,
+        activeClass: 'bg-rose-600/10 text-rose-400',
+    }
 ];
 
 /**
@@ -91,7 +98,7 @@ const Sidebar = ({
 
             <div className="space-y-4 px-1">
                 <SelectField
-                    label="Architecture Layer"
+                    label="SLM"
                     icon={Cpu}
                     value={selectedModel}
                     options={modelOptions}

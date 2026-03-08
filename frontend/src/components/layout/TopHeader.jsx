@@ -6,6 +6,7 @@ const TAB_LABELS = {
     playground: 'Playground',
     graph: 'Graph Viz',
     eval: 'Evaluation',
+    'chat-test': 'SLM Chat Test',
 };
 
 /**

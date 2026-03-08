@@ -18,7 +18,7 @@ WORKDIR /app
 COPY pyproject.toml poetry.lock* ./
 
 # Cài production deps (không dev)
-RUN /opt/poetry/bin/poetry install --only main --no-root
+RUN poetry install --only main --no-root
 
 # ─── Stage 2: runtime image (nhỏ hơn, không có Poetry) ───────────────────────
 FROM python:3.11-slim AS runtime

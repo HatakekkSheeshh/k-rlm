@@ -13,7 +13,8 @@ import logging
 from typing import AsyncIterator
 
 import httpx
-from tenacity import retry, stop_after_attempt, wait_exponential
+from langsmith import traceable
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 from app.config import settings
 
@@ -41,15 +42,17 @@ async def close_client() -> None:
 
 # ─── API helpers ──────────────────────────────────────────────────────────────
 
-@retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
+@traceable(name="ollama_generate", run_type="llm")
+@retry(
+    stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
 async def generate(
     prompt: str,
     model:  str = settings.default_model,
     system: str | None = None,
 ) -> dict:
     """
-    Non-streaming generate — returns full response as a dict.
-    Keys: model, created_at, response, done, eval_count, eval_duration …
+    Non-streaming generate — returns full response dict with LangSmith-compatible usage.
+    Includes: output (text), usage (input_tokens, output_tokens), plus raw Ollama fields.
     """
     payload: dict = {"model": model, "prompt": prompt, "stream": False}
     if system:
@@ -58,7 +61,16 @@ async def generate(
     client = get_client()
     resp = await client.post("/api/generate", json=payload)
     resp.raise_for_status()
-    return resp.json()
+    raw = resp.json()
+
+    return {
+        **raw,                         
+        "output": raw.get("response", ""),
+        "usage": {
+            "input_tokens":  raw.get("prompt_eval_count", 0),
+            "output_tokens": raw.get("eval_count", 0),
+        },
+    }
 
 
 async def generate_stream(

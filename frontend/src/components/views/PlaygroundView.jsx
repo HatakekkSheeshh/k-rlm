@@ -9,30 +9,52 @@ import { DECOMPOSITION_STEPS } from '../../data/constants';
  *
  * Props:
  *   selectedStrategy {string} — chiến lược suy luận hiện tại (từ sidebar)
+ *   selectedModel    {string} — Ollama model tag (e.g. "phi3:mini")
  */
-const PlaygroundView = ({ selectedStrategy }) => {
+const PlaygroundView = ({ selectedStrategy, selectedModel }) => {
     const [query, setQuery] = useState('');
     const [isInferencing, setIsInferencing] = useState(false);
     const [inferenceResult, setInferenceResult] = useState(null);
+    const [errorMsg, setErrorMsg] = useState(null);
 
-    const handleRunInference = () => {
+    const handleRunInference = async () => {
         if (!query) return;
         setIsInferencing(true);
         setInferenceResult(null);
+        setErrorMsg(null);
 
-        setTimeout(() => {
-            setIsInferencing(false);
-            setInferenceResult({
-                answer:
-                    'Based on the recursive decomposition and graph retrieval, Transformers enable the core ' +
-                    'attention mechanism needed for Recursive Language Models (RLM) to process multi-hop paths ' +
-                    'successfully. The query requires understanding Entity Resolution which connects to standard RAG.',
-                tokens: 342,
-                time: '1.2s',
-                hops: 3,
-                nodesUsed: 4,
+        try {
+            const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1';
+            const response = await fetch(`${API_BASE_URL}/inference`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    prompt: query,
+                    model: selectedModel,
+                    strategy: selectedStrategy
+                })
             });
-        }, 2000);
+
+            if (!response.ok) {
+                throw new Error(`API error: ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            // Format metrics from backend response
+            setInferenceResult({
+                answer: data.answer,
+                tokens: data.metrics.eval_count || 0,
+                time: `${data.metrics.latency_s}s`,
+                hops: 3,         // Future logic for Graph RAG
+                nodesUsed: 4     // Future logic for Graph RAG
+            });
+        } catch (error) {
+            console.error(error);
+            setErrorMsg(error.message || 'Failed to connect to backend.');
+        } finally {
+            setIsInferencing(false);
+        }
     };
 
     return (
@@ -74,6 +96,13 @@ const PlaygroundView = ({ selectedStrategy }) => {
                         </button>
                     </div>
                 </div>
+
+                {/* Error Banner */}
+                {errorMsg && (
+                    <div className="p-4 rounded-xl bg-red-950/50 border border-red-900 text-red-400 text-sm">
+                        {errorMsg}
+                    </div>
+                )}
 
                 {/* Result panel (conditional) */}
                 {inferenceResult && <ResultPanel result={inferenceResult} />}

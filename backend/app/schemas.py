@@ -9,10 +9,11 @@ from pydantic import BaseModel, Field
 # ─── Inference ────────────────────────────────────────────────────────────────
 
 class InferenceRequest(BaseModel):
-    prompt:   str         = Field(...,            min_length=1, description="User query")
-    model:    str         = Field("phi3:mini",    description="Ollama model tag")
-    strategy: str         = Field("Standard RAG", description="Reasoning strategy label")
-    system:   str | None  = Field(None,           description="Optional system prompt")
+    prompt:          str         = Field(...,            min_length=1, description="User query or OCR text")
+    model:           str         = Field("phi3:mini",    description="Ollama model tag")
+    strategy:        str         = Field("Standard RAG", description="Reasoning strategy label")
+    system:          str | None  = Field(None,           description="Optional system prompt override")
+    prompt_template: str         = Field("raw",          description="Prompt template id from /api/v1/templates")
 
 
 class InferenceMetrics(BaseModel):
