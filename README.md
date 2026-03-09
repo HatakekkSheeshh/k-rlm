@@ -5,6 +5,7 @@ Full-stack research platform with Knowledge Graph extraction and RLM-based infer
 ## Quick Start
 
 ```bash
+cp backend/.env.example backend/.env
 docker compose up -d
 ```
 

@@ -3,42 +3,11 @@
 Backend application for graph extraction, inference and evaluations.
 Built using FastAPI.
 
-## Quick Start
-
 ### Prerequisites
 
 - Python 3.11+
 - Poetry (for dependency management)
 - Docker & Docker Compose (for full stack)
-
-### Local Development
-
-1. Install dependencies:
-
-```bash
-cd backend
-poetry install
-```
-
-2. Create `.env` file (copy from `.env.example`):
-
-```bash
-cp .env.example .env
-```
-
-3. Start services with Docker Compose:
-
-```bash
-docker compose up -d
-```
-
-4. Run the backend:
-
-```bash
-poetry run uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
-```
-
-5. Access API docs at: http://localhost:8000/docs
 
 ## Environment Variables
 
