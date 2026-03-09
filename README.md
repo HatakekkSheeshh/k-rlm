@@ -56,4 +56,3 @@ docker compose up -d
 ## Documentation
 
 - [Architecture Flows](docs/Flows.md)
-- [Backend Docs](backend/docs/)
