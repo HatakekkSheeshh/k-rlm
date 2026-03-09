@@ -52,15 +52,3 @@
               │
               └─► NO ──► [Generate final answer]
 ```
-
-## API Endpoints
-
-| Endpoint                    | Method | Description                         |
-| --------------------------- | ------ | ----------------------------------- |
-| `/api/v1/health`            | GET    | Health check                        |
-| `/api/v1/inference`         | POST   | Run inference (Standard RAG or RLM) |
-| `/api/v1/models`            | GET    | List Ollama models                  |
-| `/api/v1/models/pull`       | POST   | Pull model                          |
-| `/api/v1/graph/extract`     | POST   | Upload document, extract KG         |
-| `/api/v1/graph/data`        | GET    | Get graph for visualization         |
-| `/api/v1/graph/communities` | GET    | Get community summaries             |
