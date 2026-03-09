@@ -16,6 +16,13 @@ pydantic-settings = "^2.3.0"
 python-dotenv  = "^1.0.1"
 tenacity       = "^8.3.0"          # retry logic cho Ollama
 langsmith      = "^0.1.75"         # telemetry / tracing
+python-multipart = "^0.0.9"        # for file upload handling
+kreuzberg      = { extras = ["vision", "paddleocr"], version = ">=4.4.4" }
+paddleocr      = ">=2.7.0"
+onnxruntime    = ">=1.15.0"
+opencv-python-headless = ">=4.0.0"
+neo4j          = "^5.20.0"         # GraphDB driver
+qdrant-client  = "^1.9.0"          # VectorDB client
 
 [tool.poetry.group.dev.dependencies]
 pytest         = "^8.2.0"

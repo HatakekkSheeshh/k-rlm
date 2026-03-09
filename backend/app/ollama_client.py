@@ -1,10 +1,6 @@
 """
-app/ollama_client.py — async HTTP client wrapper for Ollama REST API.
-
-Endpoints used:
-  POST /api/generate      → single-turn text generation
-  GET  /api/tags          → list available (pulled) models
-  POST /api/pull          → pull a model (streaming, we consume until done)
+Ollama REST API client.
+Endpoints: /api/generate, /api/embeddings, /api/tags, /api/pull
 """
 from __future__ import annotations
 
@@ -14,13 +10,12 @@ from typing import AsyncIterator
 
 import httpx
 from langsmith import traceable
-from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
+from tenacity import retry, stop_after_attempt, wait_exponential
 
 from app.config import settings
 
 logger = logging.getLogger(__name__)
 
-# ─── Shared async client (reuse across requests) ──────────────────────────────
 _client: httpx.AsyncClient | None = None
 
 
@@ -40,20 +35,10 @@ async def close_client() -> None:
         await _client.aclose()
 
 
-# ─── API helpers ──────────────────────────────────────────────────────────────
-
 @traceable(name="ollama_generate", run_type="llm")
-@retry(
-    stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=2, max=10))
-async def generate(
-    prompt: str,
-    model:  str = settings.default_model,
-    system: str | None = None,
-) -> dict:
-    """
-    Non-streaming generate — returns full response dict with LangSmith-compatible usage.
-    Includes: output (text), usage (input_tokens, output_tokens), plus raw Ollama fields.
-    """
+@retry(stop=stop_after_attempt(2), wait=wait_exponential(multiplier=1, min=2, max=5))
+async def generate(prompt: str, model: str = settings.default_model, system: str | None = None) -> dict:
+    """Non-streaming generate - returns response dict with usage info."""
     payload: dict = {"model": model, "prompt": prompt, "stream": False}
     if system:
         payload["system"] = system
@@ -63,24 +48,11 @@ async def generate(
     resp.raise_for_status()
     raw = resp.json()
 
-    return {
-        **raw,                         
-        "output": raw.get("response", ""),
-        "usage": {
-            "input_tokens":  raw.get("prompt_eval_count", 0),
-            "output_tokens": raw.get("eval_count", 0),
-        },
-    }
+    return {**raw, "output": raw.get("response", ""), "usage": {"input_tokens": raw.get("prompt_eval_count", 0), "output_tokens": raw.get("eval_count", 0)}}
 
 
-async def generate_stream(
-    prompt: str,
-    model:  str = settings.default_model,
-    system: str | None = None,
-) -> AsyncIterator[str]:
-    """
-    Streaming generate — yields token chunks as they arrive.
-    """
+async def generate_stream(prompt: str, model: str = settings.default_model, system: str | None = None) -> AsyncIterator[str]:
+    """Streaming generate - yields token chunks."""
     payload: dict = {"model": model, "prompt": prompt, "stream": True}
     if system:
         payload["system"] = system
@@ -98,19 +70,15 @@ async def generate_stream(
 
 
 async def list_models() -> list[str]:
-    """Return names of models already pulled into Ollama."""
+    """List models available in Ollama."""
     client = get_client()
     resp = await client.get("/api/tags")
     resp.raise_for_status()
-    data = resp.json()
-    return [m["name"] for m in data.get("models", [])]
+    return [m["name"] for m in resp.json().get("models", [])]
 
 
 async def pull_model(model: str) -> dict:
-    """
-    Pull a model from Ollama registry.
-    Consumes the streaming response and returns the last status message.
-    """
+    """Pull model from Ollama registry. Returns last status."""
     client = get_client()
     last: dict = {}
     async with client.stream("POST", "/api/pull", json={"name": model}) as resp:
@@ -120,3 +88,20 @@ async def pull_model(model: str) -> dict:
                 last = json.loads(line)
     logger.info("pull %s finished: %s", model, last.get("status"))
     return last
+
+
+async def get_embedding(text: str, model: str = "all-minilm") -> list[float]:
+    """Generate embeddings using Ollama. Falls back to hash-based vector on failure."""
+    try:
+        client = get_client()
+        resp = await client.post("/api/embeddings", json={"model": model, "prompt": text})
+        resp.raise_for_status()
+        embedding = resp.json().get("embedding")
+        if embedding:
+            return embedding
+    except Exception as e:
+        logger.warning(f"Embedding failed: {e}, using fallback.")
+
+    import hashlib
+    hash_val = int(hashlib.sha256(text.encode()).hexdigest(), 16)
+    return [(hash_val >> (i * 8)) % 256 / 255.0 for i in range(384)]

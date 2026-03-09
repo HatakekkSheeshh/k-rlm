@@ -1,14 +1,14 @@
+@import url("https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500;600;700&family=Fira+Sans:wght@300;400;500;600;700&display=swap');
-
 @layer base {
   body {
-    background-color: theme('colors.background.main');
-    color: theme('colors.text.main');
-    font-family: theme('fontFamily.body');
+    background-color: theme("colors.background.main");
+    color: theme("colors.text.main");
+    font-family: theme("fontFamily.body");
     font-size: 16px;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
@@ -20,12 +20,11 @@
   h4,
   h5,
   h6 {
-    font-family: theme('fontFamily.heading');
+    font-family: theme("fontFamily.heading");
   }
 }
 
 @layer components {
-
   /* Buttons */
   .btn-primary {
     @apply bg-cta text-white py-3 px-6 rounded-lg font-semibold transition-all duration-200 cursor-pointer;

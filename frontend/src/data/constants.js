@@ -1,29 +1,15 @@
-// ─── Static option lists ─────────────────────────────────────────────────────
-// Each entry: { label → display name in UI, tag → Ollama model tag }
-/* 
-Microsoft
-Google
-Mistral AI
-*/
-export const MODELS = [
-    { label: 'Phi-3 Mini', tag: 'phi3:mini' },
-    { label: 'Gemma 7B', tag: 'gemma:7b' },
-    { label: 'Mistral 7B v0.2', tag: 'mistral:7b-instruct-v0.2-q4_0' },
-];
+export async function fetchModels() {
+  const response = await fetch(`${import.meta.env.VITE_API_BASE_URL || 'http://localhost:8000/api/v1'}/models`);
+  const data = await response.json();
+  return data.supported;
+}
 
-export const STRATEGIES = [
-    'Standard RAG',
-    'Graph Traversal',
-    'Recursive RLM (Decomp)',
-];
+export const MODELS = [];
 
-export const DATASETS = [
-    'Medical (PubMed)',
-    'Finance (SEC)',
-    'General (Wiki)',
-];
+export const STRATEGIES = ['Graph Traversal', 'Recursive RLM'];
 
-// ─── Knowledge graph mock data ────────────────────────────────────────────────
+export const DATASETS = ['Medical (PubMed)', 'Finance (SEC)', 'General (Wiki)'];
+
 export const GRAPH_DATA = {
     nodes: [
         { id: '1', name: 'Machine Learning', group: 1, val: 5 },
@@ -45,14 +31,12 @@ export const GRAPH_DATA = {
     ],
 };
 
-// ─── Evaluation benchmark data ────────────────────────────────────────────────
 export const PERFORMANCE_DATA = [
     { name: 'Mistral (RLM)', precision: 89, recall: 90, latency: 380, cost: 0.10 },
     { name: 'Phi-3 (RAG)', precision: 75, recall: 72, latency: 150, cost: 0.04 },
     { name: 'Gemma (RAG)', precision: 78, recall: 76, latency: 180, cost: 0.05 },
 ];
 
-// ─── Decomposition trace steps ────────────────────────────────────────────────
 export const DECOMPOSITION_STEPS = [
     { id: 1, type: 'split', text: 'Analyze the complex query into 3 distinct sub-problems.' },
     { id: 2, type: 'retrieve', text: 'Retrieve graph nodes for Sub-problem A [Entity: Transformers].' },
