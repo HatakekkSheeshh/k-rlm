@@ -41,14 +41,13 @@ class Neo4jClient:
 
     async def connect(self):
         try:
-            logger.info(f"Connecting to Neo4j at {settings.neo4j_uri}...")
             self._driver = AsyncGraphDatabase.driver(
                 settings.neo4j_uri, auth=(settings.neo4j_user, settings.neo4j_password)
             )
             await self._driver.verify_connectivity()
-            logger.info("Connected to Neo4j.")
+            logger.info("Connected to Neo4j successfully.")
         except Exception as e:
-            logger.error(f"Neo4j connection failed: {e}")
+            logger.error(f"Failed to connect to Neo4j: {e}")
             self._driver = None
 
     async def close(self):
@@ -63,24 +62,30 @@ class Neo4jClient:
             return
 
         if not graph_result or not graph_result.nodes:
-            logger.warning("No nodes to insert.")
+            logger.warning("No nodes to insert into Neo4j.")
             return
 
         async with self._driver.session() as session:
             try:
+                # First, clear any existing data for this document
                 await session.run(
                     "MATCH (n {source_document: $doc}) DETACH DELETE n", doc=document_name
                 )
 
+                # Insert Nodes
                 for node in graph_result.nodes:
                     label = safe_label(node.label)
                     props = node.properties or {}
                     props["source_document"] = document_name
-                    props["name"] = node.id
+                    props["name"] = node.id  # Force Neo4j Browser to display node.id as caption
 
-                    query = f"MERGE (n:`{label}` {{id: $id}}) SET n += $props"
+                    query = f"""
+                    MERGE (n:`{label}` {{id: $id}})
+                    SET n += $props
+                    """
                     await session.run(query, id=node.id, props=props)
 
+                # Insert Edges
                 for edge in graph_result.edges:
                     rel_type = safe_label(edge.relation)
                     props = edge.properties or {}
@@ -96,18 +101,24 @@ class Neo4jClient:
                         query, source_id=edge.source, target_id=edge.target, props=props
                     )
 
-                logger.info(f"Inserted {len(graph_result.nodes)} nodes, {len(graph_result.edges)} edges")
+                logger.info(
+                    f"Inserted {len(graph_result.nodes)} nodes, {len(graph_result.edges)} edges"
+                )
             except Exception as e:
                 logger.error(f"Error inserting into Neo4j: {e}")
 
     async def detect_communities(self, document_name: str) -> list[Community]:
-        """Detect communities via label grouping + connected components."""
+        """
+        Detect communities using label-based grouping.
+        Each node label (PERSON, ORG, etc.) becomes a community.
+        """
         if not self._driver:
             logger.warning("Neo4j driver not initialized, skipping community detection.")
             return []
 
         async with self._driver.session() as session:
             try:
+                # Get nodes grouped by their label (type)
                 result = await session.run(
                     """
                     MATCH (n {source_document: $doc})
@@ -130,6 +141,7 @@ class Neo4jClient:
                     if not nodes:
                         continue
 
+                    # Get edges within this community (by label)
                     edges = await self._get_community_edges_by_label(document_name, record["label"])
 
                     communities.append(
@@ -137,6 +149,7 @@ class Neo4jClient:
                     )
                     community_id += 1
 
+                # Also detect cross-label communities (connected components)
                 cross_communities = await self._detect_connected_components(document_name)
                 communities.extend(cross_communities)
 
@@ -177,15 +190,19 @@ class Neo4jClient:
                 return []
 
     async def _detect_connected_components(self, document_name: str) -> list[Community]:
-        """Detect communities as connected components."""
+        """
+        Detect communities as connected components (nodes that are interconnected).
+        This finds groups of nodes that are linked to each other.
+        """
         if not self._driver:
             return []
 
         communities = []
-        community_id = 100
+        community_id = 100  # Start after label-based communities
 
         async with self._driver.session() as session:
             try:
+                # Find nodes with relationships
                 result = await session.run(
                     """
                     MATCH (n {source_document: $doc})-[r]->(m {source_document: $doc})
@@ -201,6 +218,7 @@ class Neo4jClient:
                     if len(node_ids) < 2:
                         continue
 
+                    # Get full node info
                     nodes_result = await session.run(
                         """
                         MATCH (n {source_document: $doc})
@@ -221,6 +239,7 @@ class Neo4jClient:
                             }
                         )
 
+                    # Get edges among these nodes
                     edges_result = await session.run(
                         """
                         MATCH (a {source_document: $doc})-[r]->(b {source_document: $doc})
@@ -261,60 +280,78 @@ class Neo4jClient:
         async with self._driver.session() as session:
             try:
                 if document_name:
+                    # Get nodes for specific document
                     nodes_result = await session.run(
-                        "MATCH (n {source_document: $doc}) RETURN n.id AS id, labels(n)[0] AS label, properties(n) AS properties",
+                        """
+                        MATCH (n {source_document: $doc})
+                        RETURN n.id AS id, labels(n)[0] AS label, properties(n) AS properties
+                    """,
                         doc=document_name,
                     )
-                    edges_result = await session.run(
-                        "MATCH (a {source_document: $doc})-[r]->(b {source_document: $doc}) RETURN a.id AS source, b.id AS target, type(r) AS relation",
-                        doc=document_name,
-                    )
-                else:
-                    nodes_result = await session.run("MATCH (n) RETURN n.id AS id, labels(n)[0] AS label, properties(n) AS properties")
-                    edges_result = await session.run("MATCH (a)-[r]->(b) RETURN a.id AS source, b.id AS target, type(r) AS relation")
 
-                nodes = [{"id": r["id"], "label": r["label"], "properties": r["properties"]} async for r in nodes_result]
-                edges = [{"source": r["source"], "target": r["target"], "relation": r["relation"]} async for r in edges_result]
+                    nodes = []
+                    async for record in nodes_result:
+                        nodes.append(
+                            {
+                                "id": record["id"],
+                                "label": record["label"],
+                                "properties": record["properties"],
+                            }
+                        )
+
+                    # Get edges
+                    edges_result = await session.run(
+                        """
+                        MATCH (a {source_document: $doc})-[r]->(b {source_document: $doc})
+                        RETURN a.id AS source, b.id AS target, type(r) AS relation
+                    """,
+                        doc=document_name,
+                    )
+
+                    edges = []
+                    async for record in edges_result:
+                        edges.append(
+                            {
+                                "source": record["source"],
+                                "target": record["target"],
+                                "relation": record["relation"],
+                            }
+                        )
+                else:
+                    # Get all nodes
+                    nodes_result = await session.run("""
+                        MATCH (n)
+                        RETURN n.id AS id, labels(n)[0] AS label, properties(n) AS properties
+                    """)
+                    nodes = []
+                    async for record in nodes_result:
+                        nodes.append(
+                            {
+                                "id": record["id"],
+                                "label": record["label"],
+                                "properties": record["properties"],
+                            }
+                        )
+
+                    # Get all edges
+                    edges_result = await session.run("""
+                        MATCH (a)-[r]->(b)
+                        RETURN a.id AS source, b.id AS target, type(r) AS relation
+                    """)
+                    edges = []
+                    async for record in edges_result:
+                        edges.append(
+                            {
+                                "source": record["source"],
+                                "target": record["target"],
+                                "relation": record["relation"],
+                            }
+                        )
 
                 return {"nodes": nodes, "edges": edges}
 
             except Exception as e:
                 logger.error(f"Error getting full graph: {e}")
-                return {"nodes": [], "edges": []}
-
-    async def search_entities(self, query: str, limit: int = 10) -> dict:
-        """Search for entities matching query keywords."""
-        if not self._driver:
-            logger.warning("Neo4j driver not initialized, skipping search.")
-            return {"nodes": [], "edges": []}
-
-        keywords = [w.strip().lower() for w in query.split() if len(w.strip()) > 2]
-
-        async with self._driver.session() as session:
-            try:
-                if keywords:
-                    conditions = " OR ".join([
-                        f"toLower(n.id) CONTAINS '{kw}' OR toLower(labels(n)[0]) CONTAINS '{kw}'"
-                        for kw in keywords
-                    ])
-                    cypher = f"MATCH (n) WHERE {conditions} RETURN n.id AS id, labels(n)[0] AS label, properties(n) AS properties LIMIT {limit}"
-                else:
-                    cypher = f"MATCH (n) RETURN n.id AS id, labels(n)[0] AS label, properties(n) AS properties LIMIT {limit}"
-
-                nodes = [{"id": r["id"], "label": r["label"], "properties": r["properties"]} async for r in await session.run(cypher)]
-
-                if nodes:
-                    node_ids = [n["id"] for n in nodes]
-                    edges = [{"source": r["source"], "target": r["target"], "relation": r["relation"]} async for r in await session.run(
-                        "MATCH (a)-[r]->(b) WHERE a.id IN $node_ids OR b.id IN $node_ids RETURN a.id AS source, b.id AS target, type(r) AS relation LIMIT 20",
-                        node_ids=node_ids
-                    )]
-                    return {"nodes": nodes, "edges": edges}
-
-                return {"nodes": nodes, "edges": []}
-
-            except Exception as e:
-                logger.error(f"Error searching entities: {e}")
                 return {"nodes": [], "edges": []}
 
 

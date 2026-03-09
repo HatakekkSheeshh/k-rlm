@@ -46,12 +46,12 @@ docker compose up -d
 
 ## API Endpoints
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/v1/inference` | POST | Run inference (Standard/RLM) |
-| `/api/v1/graph/extract` | POST | Upload document, extract KG |
-| `/api/v1/graph/data` | GET | Get graph for visualization |
-| `/api/v1/graph/communities` | GET | Get community summaries |
+| Endpoint                    | Method | Description                  |
+| --------------------------- | ------ | ---------------------------- |
+| `/api/v1/inference`         | POST   | Run inference (Standard/RLM) |
+| `/api/v1/graph/extract`     | POST   | Upload document, extract KG  |
+| `/api/v1/graph/data`        | GET    | Get graph for visualization  |
+| `/api/v1/graph/communities` | GET    | Get community summaries      |
 
 ## Documentation
 

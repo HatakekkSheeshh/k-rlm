@@ -31,3 +31,5 @@ poetry.lock   # giữ lại nếu muốn reproducible builds; xoá dòng này n�
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+
+docs/
