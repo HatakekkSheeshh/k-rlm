@@ -17,6 +17,125 @@ from app.schemas import InferenceMetrics, InferenceRequest, InferenceResponse, E
 router = APIRouter(prefix="/inference", tags=["Inference"])
 
 
+async def _run_raptor_pipeline(
+    prompt: str,
+    model: str,
+    document_name: str = "default",
+) -> tuple[str, list[ExecutionStep]]:
+    """
+    Run the RAPTOR (Recursive Abstractive Processing for Tree-Organized Retrieval) pipeline:
+    1. Retrieve relevant nodes from hierarchical tree across multiple levels
+    2. Synthesize answer using multi-level context
+    Returns (answer, trace_steps).
+    """
+    from app.services.raptor_service import retrieve_from_raptor, get_raptor_tree_stats
+    
+    steps = []
+    
+    # Check if RAPTOR tree exists
+    tree_stats = get_raptor_tree_stats(document_name)
+    if tree_stats is None:
+        steps.append(ExecutionStep(
+            id=1, type="retrieve",
+            text=f"No RAPTOR tree found for document: {document_name}",
+            details={"error": "Tree not built yet"}
+        ))
+        return f"Error: No RAPTOR tree exists for document '{document_name}'. Please process the document first.", steps
+    
+    steps.append(ExecutionStep(
+        id=1, type="split",
+        text=f"Accessing RAPTOR tree with {tree_stats['levels']} levels and {tree_stats['total_nodes']} nodes",
+        details=tree_stats
+    ))
+    
+    # Retrieve from multiple levels (level 0 for specific details, higher levels for context)
+    try:
+        contexts = await retrieve_from_raptor(
+            document_name=document_name,
+            query=prompt,
+            top_k=5,
+            levels_to_search=None,  # Search all levels
+        )
+        
+        if not contexts:
+            steps.append(ExecutionStep(
+                id=2, type="retrieve",
+                text="No relevant context found in RAPTOR tree",
+                details={"query": prompt}
+            ))
+            return "No relevant information found in the document for your query.", steps
+        
+        # Group contexts by level
+        level_groups = {}
+        for ctx in contexts:
+            level = ctx["level"]
+            if level not in level_groups:
+                level_groups[level] = []
+            level_groups[level].append(ctx)
+        
+        steps.append(ExecutionStep(
+            id=2, type="retrieve",
+            text=f"Retrieved {len(contexts)} relevant nodes from {len(level_groups)} tree levels",
+            details={
+                "total_contexts": len(contexts),
+                "levels_used": sorted(level_groups.keys()),
+                "top_similarities": [f"{ctx['similarity']:.3f}" for ctx in contexts[:3]],
+            }
+        ))
+        
+        # Build hierarchical context text
+        context_parts = []
+        for level in sorted(level_groups.keys(), reverse=True):  # Start from highest level (most abstract)
+            level_contexts = level_groups[level]
+            context_parts.append(f"=== Level {level} Context (Abstraction Level) ===")
+            for ctx in level_contexts:
+                context_parts.append(ctx["text"])
+                context_parts.append("")
+        
+        context_text = "\n".join(context_parts)
+        
+        steps.append(ExecutionStep(
+            id=3, type="reason",
+            text=f"Synthesizing answer from hierarchical context ({len(context_text)} chars)",
+            details={"context_length": len(context_text)}
+        ))
+        
+        # Synthesize answer using hierarchical context
+        synthesize_prompt = f"""Answer the following question using the provided hierarchical context from a document.
+The context is organized from high-level summaries to specific details.
+
+Question: {prompt}
+
+Hierarchical Context:
+{context_text}
+
+Provide a comprehensive answer based on the context above:"""
+        
+        raw = await ollama_client.generate(
+            prompt=synthesize_prompt,
+            model=model,
+            system="You are a helpful assistant that answers questions using hierarchical document context.",
+        )
+        final_answer = raw.get("response", "")
+        
+        steps.append(ExecutionStep(
+            id=4, type="resolve",
+            text="Generated answer using RAPTOR hierarchical retrieval",
+            details={"levels_used": sorted(level_groups.keys()), "contexts_used": len(contexts)}
+        ))
+        
+        return final_answer, steps
+        
+    except Exception as e:
+        logger.error(f"RAPTOR pipeline error: {e}")
+        steps.append(ExecutionStep(
+            id=2, type="retrieve",
+            text=f"Error in RAPTOR retrieval: {str(e)}",
+            details={"error": str(e)}
+        ))
+        return f"Error during RAPTOR retrieval: {str(e)}", steps
+
+
 async def _run_rlm_pipeline(
     prompt: str,
     model: str,
@@ -210,6 +329,17 @@ async def run_inference(body: InferenceRequest = Body(...)) -> InferenceResponse
         )
         # RLM pipeline already measures its own latency internally
         # Use a rough estimate based on sub-questions
+        latency = time.perf_counter() - t0
+        eval_count = len(trace) * 50  # Rough estimate
+    elif body.strategy == "RAPTOR (Hierarchical)":
+        # Use RAPTOR hierarchical retrieval
+        # Use document name from request, fallback to "default"
+        doc_name = body.document or "default"
+        answer, trace = await _run_raptor_pipeline(
+            prompt=body.prompt,
+            model=body.model,
+            document_name=doc_name,
+        )
         latency = time.perf_counter() - t0
         eval_count = len(trace) * 50  # Rough estimate
     else:

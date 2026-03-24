@@ -354,5 +354,88 @@ class Neo4jClient:
                 logger.error(f"Error getting full graph: {e}")
                 return {"nodes": [], "edges": []}
 
+    async def search_entities(self, query: str) -> dict:
+        """
+        Search for entities matching a natural language query.
+        Uses simple keyword matching against entity names and labels.
+        Returns dict with 'nodes' and 'edges' lists.
+        """
+        if not self._driver:
+            return {"nodes": [], "edges": []}
+
+        # Extract potential keywords from query (simple approach: split on common words)
+        import re
+        keywords = re.findall(r'\b[a-zA-Z]+\b', query.lower())
+        # Filter out common stop words
+        stop_words = {
+            'the', 'a', 'an', 'and', 'or', 'but', 'is', 'are', 'was', 'were',
+            'be', 'been', 'being', 'have', 'has', 'had', 'do', 'does', 'did',
+            'will', 'would', 'should', 'could', 'may', 'might', 'must', 'can',
+            'what', 'which', 'who', 'whom', 'whose', 'when', 'where', 'why',
+            'how', 'in', 'on', 'at', 'to', 'from', 'by', 'with', 'for', 'of',
+            'your', 'based', 'identify', 'assigned', 'digit', 'representative',
+            'firm', 'within'
+        }
+        keywords = [kw for kw in keywords if kw not in stop_words and len(kw) > 2]
+
+        if not keywords:
+            # Fallback: return all entities if no meaningful keywords
+            return await self.get_full_graph()
+
+        async with self._driver.session() as session:
+            try:
+                # Search for nodes matching keywords
+                nodes_result = await session.run(
+                    """
+                    MATCH (n)
+                    WHERE ANY(kw IN $keywords WHERE toLower(n.id) CONTAINS kw 
+                              OR toLower(toString(labels(n)[0])) CONTAINS kw
+                              OR ANY(prop IN [v IN values(properties(n)) | toString(v)] 
+                                     WHERE toLower(toString(prop)) CONTAINS ANY(k IN $keywords))
+                             )
+                    RETURN DISTINCT n.id AS id, labels(n)[0] AS label, properties(n) AS properties
+                    LIMIT 50
+                """,
+                    keywords=keywords,
+                )
+
+                nodes = []
+                node_ids = set()
+                async for record in nodes_result:
+                    node_data = {
+                        "id": record["id"],
+                        "label": record["label"],
+                        "properties": record["properties"] or {},
+                    }
+                    nodes.append(node_data)
+                    node_ids.add(record["id"])
+
+                # Get edges between found nodes
+                edges = []
+                if node_ids:
+                    edges_result = await session.run(
+                        """
+                        MATCH (a)-[r]->(b)
+                        WHERE a.id IN $nodeIds AND b.id IN $nodeIds
+                        RETURN a.id AS source, b.id AS target, type(r) AS relation
+                        LIMIT 100
+                    """,
+                        nodeIds=list(node_ids),
+                    )
+
+                    async for record in edges_result:
+                        edges.append({
+                            "source": record["source"],
+                            "target": record["target"],
+                            "relation": record["relation"],
+                        })
+
+                logger.info(f"Search entities for '{query}': found {len(nodes)} nodes, {len(edges)} edges")
+                return {"nodes": nodes, "edges": edges}
+
+            except Exception as e:
+                logger.error(f"Error searching entities: {e}")
+                return {"nodes": [], "edges": []}
+
 
 neo4j_client = Neo4jClient()

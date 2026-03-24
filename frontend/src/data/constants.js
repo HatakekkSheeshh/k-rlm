@@ -6,7 +6,7 @@ export async function fetchModels() {
 
 export const MODELS = [];
 
-export const STRATEGIES = ['Graph Traversal', 'Recursive RLM'];
+export const STRATEGIES = ['Standard RAG', 'Graph Traversal', 'Recursive RLM', 'RAPTOR (Hierarchical)'];
 
 export const DATASETS = ['Medical (PubMed)', 'Finance (SEC)', 'General (Wiki)'];
 

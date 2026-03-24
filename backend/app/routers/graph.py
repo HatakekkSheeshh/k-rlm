@@ -12,6 +12,7 @@ from fastapi import APIRouter, UploadFile, File, HTTPException, Form, Query
 from app.services.document_processor import GraphEntityProcessor
 from app.services.community_summarizer import run_community_pipeline
 from app.services.neo4j_client import neo4j_client
+from app.services.raptor_service import build_raptor_tree, get_raptor_tree_stats
 from app.schemas import (
     DocumentProcessResponse,
     GraphDataResponse,
@@ -25,7 +26,7 @@ router = APIRouter(prefix="/graph", tags=["Graph Extraction"])
 async def extract_graph(
     file: UploadFile = File(...),
     model: str = Form("phi3:mini"),
-    summarize: bool = Form(True),
+    summarize: bool = Form(False),
     max_batches: int = Form(None),
 ) -> DocumentProcessResponse:
     """Extract KG from document: OCR → LLM → Neo4j → Community → Qdrant."""
@@ -58,6 +59,70 @@ async def extract_graph(
         path = Path(temp_file.name)
         if path.exists():
             path.unlink()
+
+
+@router.post("/raptor/build")
+async def build_raptor_tree_endpoint(
+    file: UploadFile = File(...),
+    model: str = Form("phi3:mini"),
+    chunk_size: int = Form(400),
+    max_levels: int = Form(3),
+):
+    """
+    Build a RAPTOR hierarchical tree from a document for multi-level retrieval.
+    This creates a tree structure with summaries at different abstraction levels.
+    """
+    from app.services.document_processor import KreuzbergExtractor
+    
+    extractor = KreuzbergExtractor()
+    suffix = Path(file.filename).suffix
+    temp_file = NamedTemporaryFile(delete=False, suffix=suffix)
+    
+    try:
+        # Save uploaded file
+        shutil.copyfileobj(file.file, temp_file)
+        temp_file.close()
+        path = Path(temp_file.name)
+        
+        # Extract text using OCR
+        raw_text = await extractor.extract_text(path)
+        
+        if not raw_text or len(raw_text.strip()) < 100:
+            raise HTTPException(status_code=400, detail="Document text extraction failed or too short")
+        
+        # Build RAPTOR tree
+        stats = await build_raptor_tree(
+            document_name=file.filename,
+            raw_text=raw_text,
+            chunk_size=chunk_size,
+            max_levels=max_levels,
+            model=model,
+        )
+        
+        return {
+            "status": "success",
+            "document": file.filename,
+            "message": f"RAPTOR tree built with {stats['levels']} levels and {stats['total_nodes']} nodes",
+            "stats": stats,
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"RAPTOR tree building failed: {str(e)}")
+    finally:
+        path = Path(temp_file.name)
+        if path.exists():
+            path.unlink()
+
+
+@router.get("/raptor/stats")
+async def get_raptor_stats(document: str = Query(...)):
+    """Get statistics about a built RAPTOR tree."""
+    stats = get_raptor_tree_stats(document)
+    
+    if stats is None:
+        raise HTTPException(status_code=404, detail=f"No RAPTOR tree found for document: {document}")
+    
+    return stats
 
 
 @router.get("/data", response_model=GraphDataResponse)

@@ -23,6 +23,8 @@ onnxruntime    = ">=1.15.0"
 opencv-python-headless = ">=4.0.0"
 neo4j          = "^5.20.0"         # GraphDB driver
 qdrant-client  = "^1.9.0"          # VectorDB client
+numpy          = "^1.24.0"         # for RAPTOR embeddings
+scikit-learn   = "^1.3.0"          # for RAPTOR clustering
 
 [tool.poetry.group.dev.dependencies]
 pytest         = "^8.2.0"

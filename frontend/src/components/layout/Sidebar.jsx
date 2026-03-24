@@ -5,10 +5,10 @@ import { Beaker, Network, Activity, MessageSquare } from 'lucide-react';
 import SelectField from '../ui/SelectField';
 
 const NAV_ITEMS = [
-    { id: 'playground', label: 'Inference Playground', Icon: Beaker, activeClass: 'bg-blue-600/10 text-blue-400' },
-    { id: 'graph', label: 'Knowledge Graph Space', Icon: Network, activeClass: 'bg-indigo-600/10 text-indigo-400' },
-    { id: 'eval', label: 'Experiment Evaluation', Icon: Activity, activeClass: 'bg-emerald-600/10 text-emerald-400' },
-    { id: 'chat-test', label: 'Chat Test (Debug)', Icon: MessageSquare, activeClass: 'bg-rose-600/10 text-rose-400' }
+    { id: 'playground', label: 'Inference Playground', icon: Beaker, activeClass: 'bg-blue-600/10 text-blue-400' },
+    { id: 'graph', label: 'Knowledge Graph Space', icon: Network, activeClass: 'bg-indigo-600/10 text-indigo-400' },
+    { id: 'eval', label: 'Experiment Evaluation', icon: Activity, activeClass: 'bg-emerald-600/10 text-emerald-400' },
+    { id: 'chat-test', label: 'Chat Test (Debug)', icon: MessageSquare, activeClass: 'bg-rose-600/10 text-rose-400' }
 ];
 
 const Sidebar = ({
@@ -30,15 +30,18 @@ const Sidebar = ({
 
         <nav className="p-4 space-y-2 flex-1">
             <div className="px-2 pb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Views</div>
-            {NAV_ITEMS.map(({ id, label, Icon, activeClass }) => (
-                <button
-                    key={id} onClick={() => onTabChange(id)}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200
+            {NAV_ITEMS.map(({ id, label, icon, activeClass }) => {
+                const NavIcon = icon;
+                return (
+                    <button
+                        key={id} onClick={() => onTabChange(id)}
+                        className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200
                         ${activeTab === id ? activeClass : 'hover:bg-slate-800/50 text-slate-400 hover:text-slate-200'}`}
-                >
-                    <Icon size={18} /><span className="font-medium text-sm">{label}</span>
-                </button>
-            ))}
+                    >
+                        <NavIcon size={18} /><span className="font-medium text-sm">{label}</span>
+                    </button>
+                );
+            })}
 
             <div className="px-2 pt-6 pb-2 text-xs font-semibold text-slate-500 uppercase tracking-wider">Experiment Config</div>
             <div className="space-y-4 px-1">

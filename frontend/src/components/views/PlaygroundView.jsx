@@ -13,6 +13,15 @@ const PlaygroundView = ({ selectedStrategy, selectedModel }) => {
 
     const handleRunInference = async () => {
         if (!query) return;
+
+        const selectedDocument = localStorage.getItem('krlm_last_document');
+        const raptorReadyDocument = localStorage.getItem('krlm_raptor_ready_document');
+
+        if (selectedStrategy === 'RAPTOR (Hierarchical)' && (!selectedDocument || selectedDocument !== raptorReadyDocument)) {
+            setErrorMsg('RAPTOR tree is not ready for the current document. Please upload in Graph tab and wait for tree build to finish.');
+            return;
+        }
+
         setIsInferencing(true);
         setInferenceResult(null);
         setTraceSteps(null);
@@ -26,7 +35,8 @@ const PlaygroundView = ({ selectedStrategy, selectedModel }) => {
                 body: JSON.stringify({
                     prompt: query,
                     model: selectedModel,
-                    strategy: selectedStrategy
+                    strategy: selectedStrategy,
+                    document: selectedDocument || undefined
                 })
             });
 

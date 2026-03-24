@@ -35,6 +35,14 @@ docker compose up -d
 1. **Document Upload** → OCR (Kreuzberg) → Chunk → LLM → KG (Neo4j)
 2. **Community Detection** → LLM Summarization → Qdrant (embeddings)
 3. **RLM Inference** → Multi-hop reasoning over knowledge graph
+4. **RAPTOR Trees** → Hierarchical document retrieval with multi-level abstraction
+
+## Retrieval Strategies
+
+- **Standard RAG**: Direct LLM generation
+- **Graph Traversal**: Entity-based retrieval from Neo4j
+- **Recursive RLM**: Query decomposition + graph retrieval
+- **RAPTOR (Hierarchical)**: Multi-level tree retrieval (new!)
 
 ## Tech Stack
 
@@ -56,8 +64,11 @@ docker compose up -d
 | `/api/v1/graph/extract`     | POST   | Upload document, extract KG         |
 | `/api/v1/graph/data`        | GET    | Get graph for visualization         |
 | `/api/v1/graph/communities` | GET    | Get community summaries             |
+| `/api/v1/graph/raptor/build`| POST   | Build RAPTOR hierarchical tree      |
+| `/api/v1/graph/raptor/stats`| GET    | Get RAPTOR tree statistics          |
 
 ## Documentation
 
 - [Architecture Flows](docs/Flows.md)
 - [Backend Docs](backend/README.md)
+- [RAPTOR Usage Guide](backend/RAPTOR_USAGE.md)
